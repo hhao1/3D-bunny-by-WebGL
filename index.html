@@ -1,0 +1,126 @@
+<html>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+precision mediump float;
+
+attribute vec4 vPosition;
+attribute vec4 vNorm;
+attribute float modelLight;
+
+varying vec4 n;
+varying vec4 p;
+varying float ML;
+
+uniform vec4 pointLight;
+uniform vec4 spotLight;
+uniform mat4 spotLightSpin;
+uniform mat4 spotLightAdjust;
+uniform mat4 lightSpin;
+
+uniform mat4 modelView;
+uniform mat4 projection;
+
+void main() 
+{
+    if(modelLight > 1.5){
+        vec4 slDirection = spotLightAdjust * vec4(0.0, -1.0, 0.0, 0.0);
+        p = spotLight + spotLightAdjust*spotLightSpin*vPosition;
+        p.a = 1.0;
+        n=vNorm;
+    }else if(modelLight > 0.5){
+        p = pointLight + lightSpin*vPosition;
+        p.a = 1.0;
+        n=vNorm;
+    }else{
+        p = modelView*vPosition;
+        n = normalize(modelView*vNorm);
+    }
+    ML = modelLight;
+    gl_Position = projection * p;
+    
+} 
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+
+precision mediump float;
+   
+varying vec4 n;
+varying vec4 p;
+varying float ML;
+
+uniform vec4 Kd;
+uniform vec4 Ks;
+uniform vec4 Ka;
+uniform float shine;
+
+uniform vec4 pointLight;
+uniform vec4 plAmbient;
+uniform vec4 plSpecular;
+uniform vec4 plDiffuse;
+
+uniform vec4 spotLight;
+uniform float slAngle;
+uniform float Attenuation;
+uniform mat4 spotLightAdjust; //for it to point at 0,0,0
+
+void main()
+{
+    vec4 fColor;
+    float a = 0.1;
+    float b = 0.043;
+    float c = 0.021;
+    float d = length(pointLight - p);
+    float distanceCo = 1.0/(a+b*d+c*d*d);
+    vec4 l = normalize(pointLight - p);
+    vec4 v = normalize( -(p - vec4(0,0,10,0)) );
+
+    vec4 r = 2.0*dot(l,n)*n -l;
+
+    vec4 A = Ka * plAmbient;
+    vec4 D = distanceCo * Kd * max(dot(l,n), 0.0) * plDiffuse;
+    vec4 S = distanceCo * Ks * pow( max(dot(r,v), 0.0), shine ) * plSpecular;
+    if( dot(l, n) < 0.0 ) {
+        S = vec4(0.0, 0.0, 0.0, 1.0);
+    }
+
+    vec4 slDirection = spotLightAdjust * vec4(0.0, -1.0, 0.0, 0.0);
+    float sld = pow(length(spotLight - p), 2.0);
+    float sldistanceCo = 1.0/(a+b*sld+c*sld*sld);
+    vec4 sl = normalize(spotLight - p);
+    vec4 slr = 2.0*dot(sl,n)*n -sl;
+    float theta = degrees(acos( dot(-sl, normalize(slDirection) ) ));
+    float intensity = pow(dot(-sl, normalize(slDirection) ), Attenuation);
+    if(theta < slAngle){
+        vec4 slD = distanceCo * Kd * max(dot(sl,n), 0.0) * (intensity * plDiffuse);
+        vec4 slS = distanceCo * Ks * pow( max(dot(slr,v), 0.0), shine ) * (intensity * plSpecular);
+        if( dot(sl, n) < 0.0 ) {
+            slS = vec4(0.0, 0.0, 0.0, 1.0);
+        }
+        fColor = A + D + S + slD + slS;
+    }else{
+        fColor = A + D + S;
+    }
+    fColor.a = 1.0;
+    if(ML>0.5){
+        fColor = vec4(0.812, 0.812, 0.812, 1.0);
+    }
+    gl_FragColor = fColor;
+}
+</script>
+
+<script type="text/javascript" src="../Common/webgl-utils.js"></script>
+<script type="text/javascript" src="../Common/initShaders.js"></script>
+<script type="text/javascript" src="../Common/MV.js"></script>
+<script type="text/javascript" src="bunny.js"></script>
+
+<body>
+    <div style="text-align: center">
+        <canvas id="gl-canvas" width="1080" height="720">
+                your browser doesn't support the HTML5 canvas element
+        </canvas>
+    </div>
+    <script src="calc.js"></script>
+
+</body>
+</html>
